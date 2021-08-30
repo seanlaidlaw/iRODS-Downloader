@@ -62,6 +62,11 @@ type cram_file struct {
 	Cram_is_phix          bool
 	Cram_dl_path          string
 	Cram_download_success bool
+	Imeta_path            string
+	Library_type          string
+	Sample_name           string
+	Imeta_downloaded      bool
+	Imeta_parsed          bool
 }
 
 var cram_list []cram_file
@@ -71,6 +76,7 @@ func main() {
 	var run string
 	var lane string
 	var current_step int
+	attribute_with_sample_name := "sample_supplier_name"
 
 	// flags declaration using flag package
 	flag.StringVar(&run, "r", "run", "Specify sequencing run")
@@ -270,4 +276,97 @@ func main() {
 
 		writeCheckpoint(cram_list, current_step)
 	}
+
+	current_step = 2
+	// if imeta already downloaded then load session information and continue
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+		log.Println(fmt.Sprintf("Starting step %d", current_step))
+
+		log.Println("Getting imeta for each downloaded cram")
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Cram_download_success {
+
+				cmd := exec.Command("imeta", "ls", "-d", cram.Irods_path)
+
+				cram.Imeta_path = cram.Cram_dl_path + ".imeta"
+				imeta_file, err := os.Create(cram.Imeta_path)
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer imeta_file.Close()
+
+				// Send stdout to the outfile. cmd.Stdout will take any io.Writer.
+				cmd.Stdout = imeta_file
+				err = cmd.Run()
+				if err != nil {
+					// Display everything we got if error.
+					fmt.Println("Error when running command.  Output:")
+					fmt.Printf("Got command status: %s\n", err.Error())
+					return
+				}
+				cram.Imeta_downloaded = true
+			}
+		}
+
+		log.Println("Parsing imeta file to obtain library_type and sample name")
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Cram_download_success {
+
+				library_type := ""
+				sample_name := ""
+
+				imeta, _ := ioutil.ReadFile(cram.Imeta_path)
+				split_imeta := bytes.Split(imeta, []byte("----"))
+				for _, line := range split_imeta {
+					if bytes.Contains(line, []byte("attribute: library_type")) {
+						line_split := strings.Split(strings.TrimSuffix(string(line), "\n"), "\n")
+						for _, l := range line_split {
+							if strings.Contains(l, "value:") {
+								library_type = strings.ReplaceAll(l, "value:", "")
+								library_type = strings.TrimSpace(library_type)
+								cram.Library_type = library_type
+								break
+							}
+						}
+						if library_type != "" {
+							break
+						}
+					}
+				}
+				for _, line := range split_imeta {
+					if bytes.Contains(line, []byte("attribute: "+attribute_with_sample_name)) {
+						line_split := strings.Split(strings.TrimSuffix(string(line), "\n"), "\n")
+						for _, l := range line_split {
+							if strings.Contains(l, "value:") {
+								sample_name = strings.ReplaceAll(l, "value:", "")
+								sample_name = strings.TrimSpace(sample_name)
+								cram.Sample_name = sample_name
+								cram.Imeta_parsed = true
+								break
+							}
+						}
+						// as this loop goes line by line, this break means it stops when the first sample_name is found.
+						if sample_name != "" {
+							break
+						}
+					}
+				}
+			}
+		}
+
+		writeCheckpoint(cram_list, current_step)
+	}
+
 }
