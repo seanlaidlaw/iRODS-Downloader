@@ -100,6 +100,8 @@ type cram_file struct {
 	Fastq_extracted_success bool
 	Symlinked_fq_1          string
 	Symlinked_fq_2          string
+	Realigned_bam_path      string
+	Realigned_succesful     bool
 }
 
 var cram_list []cram_file
@@ -108,6 +110,13 @@ func main() {
 	// variables that the user can change
 	attribute_with_sample_name := "sample_supplier_name"
 	samtools_exec := "/software/CASM/modules/installs/samtools/samtools-1.11/bin/samtools"
+	// define the library_type values that use each aligner
+	star_align_libraries := []string{"GnT scRNA"}
+	bwa_align_libraries := []string{"GnT Picoplex"}
+	star_exec := "/nfs/users/nfs_r/rr11/Tools/STAR-2.5.2a/bin/Linux_x86_64_static/STAR"
+	star_genome_dir := "/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/"
+	bwa_exec := "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa"
+	bwa_genome_ref := "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa"
 
 	var run string
 	var lane string
@@ -491,6 +500,97 @@ func main() {
 				cram.Symlinked_fq_2 = lib_type_dir + "/" + cram.Sample_name + ".2.fq.gz"
 			}
 		}
+
+		writeCheckpoint(cram_list, current_step)
+	}
+
+	current_step = 5
+	// if alignments already performed then load session information and continue
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+
+		_ = os.MkdirAll("5_realignments/", 0755)
+		log.Println("Running alignments between extracted fastq and specified reference")
+		realignment_map := make(map[string]string)
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Symlinked_fq_1 != "" && cram.Symlinked_fq_2 != "" {
+
+				out_folder := "5_realignments/" + strings.ReplaceAll(cram.Library_type, " ", "_") + "/"
+				_ = os.MkdirAll(out_folder, 0755)
+
+				bam_output := out_folder + cram.Sample_name + ".bam"
+				fmt.Println(bam_output)
+				job_out := out_folder + "/5_realignement_RNA_" + cram.Sample_name + ".o"
+				job_err := out_folder + "/5_realignement_RNA_" + cram.Sample_name + ".e"
+
+				if stringInSlice(cram.Library_type, star_align_libraries) {
+					output, err := exec.Command(
+						"bsub",
+						"-o", job_out,
+						"-e", job_err,
+						"-R'select[mem>50000] rusage[mem=50000]'", "-M50000",
+						"-n", "10",
+						star_exec, "--runThreadN", "10",
+						"--outSAMattributes", "NH", "HI", "NM", "MD",
+						"--limitBAMsortRAM", "31532137230",
+						"--outSAMtype", "BAM", "SortedByCoordinate",
+						"--genomeDir", star_genome_dir,
+						"--readFilesCommand", "zcat",
+						"--outFileNamePrefix", out_folder+"/"+cram.Filename,
+						"--readFilesIn", cram.Symlinked_fq_1, cram.Symlinked_fq_2,
+						"--outStd", "BAM_SortedByCoordinate",
+						"|", samtools_exec, "sort", "-@3", "-l7", "-o", bam_output).CombinedOutput()
+
+					if err != nil {
+						// Display everything we got if error.
+						fmt.Println("Error when running command.  Output:")
+						fmt.Println(string(output))
+						fmt.Printf("Got command status: %s\n", err.Error())
+						return
+					}
+
+					cram.Realigned_bam_path = bam_output
+					realignment_map[cram.Filename] = job_out
+
+				} else if stringInSlice(cram.Library_type, bwa_align_libraries) {
+					output, err := exec.Command(
+						"bsub",
+						"-o", job_out,
+						"-e", job_err,
+						"-R'select[mem>50000] rusage[mem=50000]'", "-M50000",
+						"-n", "10",
+						bwa_exec, "mem", "-t", "10",
+						bwa_genome_ref,
+						cram.Symlinked_fq_1,
+						cram.Symlinked_fq_2,
+						"|", samtools_exec, "sort", "-@3", "-l7", "-o", bam_output).CombinedOutput()
+
+					if err != nil {
+						// Display everything we got if error.
+						fmt.Println("Error when running command.  Output:")
+						fmt.Println(string(output))
+						fmt.Printf("Got command status: %s\n", err.Error())
+						return
+					}
+
+					cram.Realigned_bam_path = bam_output
+					realignment_map[cram.Filename] = job_out
+				}
+			}
+		}
+
+		// check on alignment jobs until they have finished
+		bjobsIsCompleted(realignment_map, "Realigned_succesful", &cram_list)
 
 		writeCheckpoint(cram_list, current_step)
 	}
