@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // PIPELINE STEPS
@@ -53,12 +54,14 @@ func writeCheckpoint(cram_list []cram_file, step int) {
 }
 
 type cram_file struct {
-	Filename             string
-	Runid                string
-	Runlane              string
-	Irods_path           string
-	File_exists_in_irods bool
-	Cram_is_phix         bool
+	Filename              string
+	Runid                 string
+	Runlane               string
+	Irods_path            string
+	File_exists_in_irods  bool
+	Cram_is_phix          bool
+	Cram_dl_path          string
+	Cram_download_success bool
 }
 
 var cram_list []cram_file
@@ -183,6 +186,88 @@ func main() {
 		}
 
 		// write copy of array of cram objects to JSON file
+		writeCheckpoint(cram_list, current_step)
+	}
+
+	current_step = 1
+	// if CRAMS downloaded then load session information and continue
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+		log.Println(fmt.Sprintf("Starting step %d", current_step))
+
+		// download each of the cram files
+		log.Println("Starting download of iRODS CRAM files")
+		cram_dl_dir := "1_iRODS_CRAM_Downloads/"
+		err := os.Mkdir(cram_dl_dir, 0755)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		undownloaded_cram_map := make(map[string]string)
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.File_exists_in_irods {
+				if !cram.Cram_is_phix {
+
+					undownloaded_cram_map[cram.Filename] = ""
+					cram.Cram_dl_path = cram_dl_dir + "/" + cram.Filename
+					output, err := exec.Command(
+						"bsub",
+						"-o", cram_dl_dir+"/"+cram.Filename+".o",
+						"-e", cram_dl_dir+"/"+cram.Filename+".e",
+						"-R'select[mem>2000] rusage[mem=2000]'", "-M2000",
+						"iget", "-K", cram.Irods_path, cram.Cram_dl_path).CombinedOutput()
+
+					if err != nil {
+						// Display everything we got if error.
+						fmt.Println("Error when running command.  Output:")
+						fmt.Println(string(output))
+						fmt.Printf("Got command status: %s\n", err.Error())
+						return
+					}
+				}
+			}
+		}
+
+		// verify the cram files downloaded correctly and write download status to object metadata
+		log.Println("Verifying success of downloads")
+		for len(undownloaded_cram_map) > 0 {
+			for i := range cram_list {
+				cram := &cram_list[i]
+				dat, err := ioutil.ReadFile(cram_dl_dir + "/" + cram.Filename + ".o")
+				if err == nil {
+					if strings.Contains(string(dat), "Terminated at") {
+						if strings.Contains(string(dat), "Successfully completed.") {
+							cram.Cram_download_success = true
+							delete(undownloaded_cram_map, cram.Filename)
+						}
+					}
+				}
+			}
+			time.Sleep(5 * time.Second)
+		}
+		if len(undownloaded_cram_map) > 0 {
+			for len(undownloaded_cram_map) > 0 {
+				for i := range cram_list {
+					cram := &cram_list[i]
+					_, err := ioutil.ReadFile(cram_dl_dir + "/" + cram.Filename + ".o")
+					if err != nil {
+						fmt.Println("Error when opening bjobs stdout file.  Error:")
+						fmt.Println(err.Error())
+					}
+				}
+			}
+		}
+
 		writeCheckpoint(cram_list, current_step)
 	}
 }
