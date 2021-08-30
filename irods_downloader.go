@@ -63,10 +63,15 @@ func bjobsIsCompleted(submitted_jobs_map map[string]string, attribute_name strin
 
 			dat, err := ioutil.ReadFile(bjobs_output_filename)
 			if err == nil {
+				// when job has finished (either successfully or with exit code, remove from the waiting list 'submitted_jobs_map'
 				if strings.Contains(string(dat), "Terminated at") {
+					delete(submitted_jobs_map, func_cram.Filename)
+
+					// if job has finished and successfully completed then set the specified attribute_name to true
 					if strings.Contains(string(dat), "Successfully completed.") {
 						reflect.ValueOf(func_cram).Elem().FieldByName(attribute_name).SetBool(true)
-						delete(submitted_jobs_map, func_cram.Filename)
+					} else {
+						log.Println(fmt.Sprintf("Error with bsub job: %s", bjobs_output_filename))
 					}
 				}
 			}
