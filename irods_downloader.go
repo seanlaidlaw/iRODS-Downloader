@@ -93,6 +93,8 @@ type cram_file struct {
 	Fastq_1_path            string
 	Fastq_2_path            string
 	Fastq_extracted_success bool
+	Symlinked_fq_1          string
+	Symlinked_fq_2          string
 }
 
 var cram_list []cram_file
@@ -432,6 +434,58 @@ func main() {
 		log.Println("Verifying success of extracting fastq")
 
 		bjobsIsCompleted(fastq_cram_map, "Fastq_extracted_success", &cram_list)
+
+		writeCheckpoint(cram_list, current_step)
+	}
+
+	current_step = 4
+	// if symlinks already created then load session information and continue
+	// if fastq have already been split then load checkpoint instead of rerunning
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+		// check for duplicate sample names before symlinking with sample_name as filename
+		log.Println("Checking there are no duplicate sample names")
+		sample_names_map := make(map[string][]string)
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Library_type != "" {
+				sample_names_map[cram.Library_type] = []string{}
+			}
+		}
+
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Library_type != "" {
+				if stringInSlice(cram.Sample_name, sample_names_map[cram.Library_type]) {
+					log.Printf("Duplicate sample_names found for %s", cram.Sample_name)
+					log.Fatalln("There are duplicate values in sample_names, double check your choice of 'attribute_with_sample_name'")
+				}
+				sample_names_map[cram.Library_type] = append(sample_names_map[cram.Library_type], cram.Sample_name)
+			}
+		}
+
+		log.Println("Symlinking fastq into different folders based on library_type")
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Fastq_extracted_success && cram.Library_type != "" {
+				lib_type_dir := strings.ReplaceAll(cram.Library_type, " ", "_")
+				lib_type_dir = "4_Split_by_Library_Type/" + lib_type_dir
+				_ = os.MkdirAll(lib_type_dir, 0755)
+				os.Symlink("../../"+cram.Fastq_1_path, lib_type_dir+"/"+cram.Sample_name+".1.fq.gz")
+				os.Symlink("../../"+cram.Fastq_2_path, lib_type_dir+"/"+cram.Sample_name+".2.fq.gz")
+				cram.Symlinked_fq_1 = lib_type_dir + "/" + cram.Sample_name + ".1.fq.gz"
+				cram.Symlinked_fq_2 = lib_type_dir + "/" + cram.Sample_name + ".2.fq.gz"
+			}
+		}
 
 		writeCheckpoint(cram_list, current_step)
 	}
