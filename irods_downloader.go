@@ -386,6 +386,30 @@ func main() {
 			}
 		}
 
+		log.Println("Checking there are no duplicate sample names in parsed imeta information")
+		sample_names_map := make(map[string][]string)
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Library_type != "" {
+				sample_names_map[cram.Library_type] = []string{}
+			}
+		}
+
+		if len(sample_names_map) == 0 {
+			log.Fatalln("There are no library_type information for samples")
+		}
+
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Library_type != "" {
+				if stringInSlice(cram.Sample_name, sample_names_map[cram.Library_type]) {
+					log.Printf("Duplicate sample_names found for %s", cram.Sample_name)
+					log.Fatalln("There are duplicate values in sample_names, double check your choice of 'attribute_with_sample_name'")
+				}
+				sample_names_map[cram.Library_type] = append(sample_names_map[cram.Library_type], cram.Sample_name)
+			}
+		}
+
 		writeCheckpoint(cram_list, current_step)
 	}
 
@@ -466,26 +490,6 @@ func main() {
 		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
 
 	} else {
-		// check for duplicate sample names before symlinking with sample_name as filename
-		log.Println("Checking there are no duplicate sample names")
-		sample_names_map := make(map[string][]string)
-		for i := range cram_list {
-			cram := &cram_list[i]
-			if cram.Library_type != "" {
-				sample_names_map[cram.Library_type] = []string{}
-			}
-		}
-
-		for i := range cram_list {
-			cram := &cram_list[i]
-			if cram.Library_type != "" {
-				if stringInSlice(cram.Sample_name, sample_names_map[cram.Library_type]) {
-					log.Printf("Duplicate sample_names found for %s", cram.Sample_name)
-					log.Fatalln("There are duplicate values in sample_names, double check your choice of 'attribute_with_sample_name'")
-				}
-				sample_names_map[cram.Library_type] = append(sample_names_map[cram.Library_type], cram.Sample_name)
-			}
-		}
 
 		log.Println("Symlinking fastq into different folders based on library_type")
 		for i := range cram_list {
