@@ -77,29 +77,34 @@ func bjobsIsCompleted(submitted_jobs_map map[string]string, attribute_name strin
 }
 
 type cram_file struct {
-	Filename              string
-	Runid                 string
-	Runlane               string
-	Irods_path            string
-	File_exists_in_irods  bool
-	Cram_is_phix          bool
-	Cram_dl_path          string
-	Cram_download_success bool
-	Imeta_path            string
-	Library_type          string
-	Sample_name           string
-	Imeta_downloaded      bool
-	Imeta_parsed          bool
+	Filename                string
+	Runid                   string
+	Runlane                 string
+	Irods_path              string
+	File_exists_in_irods    bool
+	Cram_is_phix            bool
+	Cram_dl_path            string
+	Cram_download_success   bool
+	Imeta_path              string
+	Library_type            string
+	Sample_name             string
+	Imeta_downloaded        bool
+	Imeta_parsed            bool
+	Fastq_1_path            string
+	Fastq_2_path            string
+	Fastq_extracted_success bool
 }
 
 var cram_list []cram_file
 
 func main() {
+	// variables that the user can change
+	attribute_with_sample_name := "sample_supplier_name"
+	samtools_exec := "/software/CASM/modules/installs/samtools/samtools-1.11/bin/samtools"
 
 	var run string
 	var lane string
 	var current_step int
-	attribute_with_sample_name := "sample_supplier_name"
 
 	// flags declaration using flag package
 	flag.StringVar(&run, "r", "run", "Specify sequencing run")
@@ -364,6 +369,69 @@ func main() {
 				}
 			}
 		}
+
+		writeCheckpoint(cram_list, current_step)
+	}
+
+	current_step = 3
+	// if fastq have already been split then load checkpoint instead of rerunning
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+		log.Println(fmt.Sprintf("Starting step %d", current_step))
+
+		log.Println("Extracting fastq from downloaded crams")
+		err := os.Mkdir("3_Fastq_Extraction", 0755)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// extract fastq from downloaded cram files
+		fastq_cram_map := make(map[string]string)
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Imeta_parsed {
+
+				fastq_cram_map[cram.Filename] = "3_Fastq_Extraction/3_cram_to_fastq_" + cram.Filename + ".o"
+				fq_filename := strings.ReplaceAll(cram.Filename, ".cram", "")
+				cram.Fastq_1_path = "3_Fastq_Extraction/" + fq_filename + ".1.fq.gz"
+				cram.Fastq_2_path = "3_Fastq_Extraction/" + fq_filename + ".2.fq.gz"
+
+				output, err := exec.Command(
+					"bsub",
+					"-o", "3_Fastq_Extraction/3_cram_to_fastq_"+cram.Filename+".o",
+					"-e", "3_Fastq_Extraction/3_cram_to_fastq_"+cram.Filename+".e",
+					"-R'select[mem>2000] rusage[mem=2000]'", "-M2000",
+					"-n", "4",
+					samtools_exec, "fastq", "-c", "7", "-@", "4",
+					"-1", cram.Fastq_1_path,
+					"-2", cram.Fastq_2_path,
+					"-0", "/dev/null",
+					"-s", "/dev/null",
+					"-n", cram.Cram_dl_path).CombinedOutput()
+
+				if err != nil {
+					// Display everything we got if error.
+					fmt.Println("Error when running command.  Output:")
+					fmt.Println(string(output))
+					fmt.Printf("Got command status: %s\n", err.Error())
+					return
+				}
+			}
+		}
+
+		// verify extracting the crams into fastq finished successfully
+		log.Println("Verifying success of extracting fastq")
+
+		bjobsIsCompleted(fastq_cram_map, "Fastq_extracted_success", &cram_list)
 
 		writeCheckpoint(cram_list, current_step)
 	}
