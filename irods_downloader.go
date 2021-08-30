@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -51,6 +52,28 @@ func writeCheckpoint(cram_list []cram_file, step int) {
 		panic(err)
 	}
 	log.Println(fmt.Sprintf("Checkpoint saved for step %d", step))
+}
+
+func bjobsIsCompleted(submitted_jobs_map map[string]string, attribute_name string, cram_list *[]cram_file) {
+	// while there are still jobs in submitted_jobs_map, iterate over reading through all job outputs and only leave when all have completed successfully
+	for len(submitted_jobs_map) > 0 {
+		for i := range *cram_list {
+			func_cram := &((*cram_list)[i])
+			bjobs_output_filename := submitted_jobs_map[func_cram.Filename]
+
+			dat, err := ioutil.ReadFile(bjobs_output_filename)
+			if err == nil {
+				if strings.Contains(string(dat), "Terminated at") {
+					if strings.Contains(string(dat), "Successfully completed.") {
+						reflect.ValueOf(func_cram).Elem().FieldByName(attribute_name).SetBool(true)
+						delete(submitted_jobs_map, func_cram.Filename)
+					}
+				}
+			}
+		}
+		// sleep for 5 seconds after going through every job's output before retrying
+		time.Sleep(5 * time.Second)
+	}
 }
 
 type cram_file struct {
@@ -224,7 +247,7 @@ func main() {
 			if cram.File_exists_in_irods {
 				if !cram.Cram_is_phix {
 
-					undownloaded_cram_map[cram.Filename] = ""
+					undownloaded_cram_map[cram.Filename] = cram_dl_dir + "/" + cram.Filename + ".o"
 					cram.Cram_dl_path = cram_dl_dir + "/" + cram.Filename
 					output, err := exec.Command(
 						"bsub",
@@ -246,33 +269,9 @@ func main() {
 
 		// verify the cram files downloaded correctly and write download status to object metadata
 		log.Println("Verifying success of downloads")
-		for len(undownloaded_cram_map) > 0 {
-			for i := range cram_list {
-				cram := &cram_list[i]
-				dat, err := ioutil.ReadFile(cram_dl_dir + "/" + cram.Filename + ".o")
-				if err == nil {
-					if strings.Contains(string(dat), "Terminated at") {
-						if strings.Contains(string(dat), "Successfully completed.") {
-							cram.Cram_download_success = true
-							delete(undownloaded_cram_map, cram.Filename)
-						}
-					}
-				}
-			}
-			time.Sleep(5 * time.Second)
-		}
-		if len(undownloaded_cram_map) > 0 {
-			for len(undownloaded_cram_map) > 0 {
-				for i := range cram_list {
-					cram := &cram_list[i]
-					_, err := ioutil.ReadFile(cram_dl_dir + "/" + cram.Filename + ".o")
-					if err != nil {
-						fmt.Println("Error when opening bjobs stdout file.  Error:")
-						fmt.Println(err.Error())
-					}
-				}
-			}
-		}
+		// this updates in place the specified attribute for objects in cram_list for the
+		// jobs that have finished successfully
+		bjobsIsCompleted(undownloaded_cram_map, "Cram_download_success", &cram_list)
 
 		writeCheckpoint(cram_list, current_step)
 	}
