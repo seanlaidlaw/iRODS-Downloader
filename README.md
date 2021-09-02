@@ -1,5 +1,32 @@
 # iRODS-Downloader
 
+## Installation
+
+To download the latest binary release the following one liner can be used
+
+```{bash}
+curl -s https://api.github.com/repos/seanlaidlaw/iRODS-Downloader/releases/latest | grep browser_download_url | cut -d '"' -f 4 | wget -qi -
+```
+
+## Dependencies
+
+### Server side Dependencies
+
+As this is essentially a pipeline that calls other functions, quite a few
+dependencies are required to be installed on the server it's run on.
+
+- [IRODS](https://irods.org) - The data management system used to store the raw
+  sequencing data
+- [LSF](https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=overview-lsf-introduction)
+  \- the Job Scheduler used on the Sanger cluster that the wrapper uses to submit
+  jobs and check job completion status
+
+### Optional Dependencies
+
+- Go - the language the pipeline is written in and required for compilation from
+  source but _not_ if using the binaries from
+  [the release](https://github.com/seanlaidlaw/iRODS-Downloader/releases)
+
 ## Usage
 
 ### Authentication
@@ -12,7 +39,6 @@ be done by running `iinit` just before running the script, e.g.
 ```{bash}
 $ iinit
 Enter your current PAM password:
-$ go run irods_downloader.go -r 1234 -l 1
 ```
 
 ### Command line arguments
@@ -21,7 +47,7 @@ There are two required arguments, `-r` for specifying the run and `-l` for
 specifying the lane. Both must be provided for the script to run properly.
 
 ```{bash}
-$ go run irods_downloader.go -r 1234 -l 1
+$ ./irods_downloader -r 1234 -l 1
 ```
 
 ### Outputs
