@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,8 +24,6 @@ import (
 // 5. Align extracted fastqs with STAR or BWA depending on 'Library_type'
 // 6. Samtools Quickcheck generated bams
 // 7. Index realigned bam files
-// 8. Sort realigned bam files
-// 9. Generate counts matrix if RNA
 
 // fileExists checks if a file exists and is not a directory before we
 // try using it to prevent further errors.
@@ -81,30 +80,51 @@ func bjobsIsCompleted(submitted_jobs_map map[string]string, attribute_name strin
 	}
 }
 
+func quickcheck_alignments(cram_list []cram_file, i int, samtools_exec string) {
+	cram := &cram_list[i]
+
+	bam_filename := cram.Realigned_bam_path
+	output, err := exec.Command(samtools_exec, "quickcheck", bam_filename).CombinedOutput()
+
+	if err != nil {
+		// Display everything we got if error.
+		fmt.Println("Error when running command.  Output:")
+		fmt.Println(string(output))
+		fmt.Printf("Got command status: %s\n", err.Error())
+		cram.Realigned_quickcheck_success = false
+	} else {
+		cram.Realigned_quickcheck_success = true
+	}
+	wg.Done()
+}
+
 type cram_file struct {
-	Filename                string
-	Runid                   string
-	Runlane                 string
-	Irods_path              string
-	File_exists_in_irods    bool
-	Cram_is_phix            bool
-	Cram_dl_path            string
-	Cram_download_success   bool
-	Imeta_path              string
-	Library_type            string
-	Sample_name             string
-	Imeta_downloaded        bool
-	Imeta_parsed            bool
-	Fastq_1_path            string
-	Fastq_2_path            string
-	Fastq_extracted_success bool
-	Symlinked_fq_1          string
-	Symlinked_fq_2          string
-	Realigned_bam_path      string
-	Realigned_succesful     bool
+	Filename                     string
+	Runid                        string
+	Runlane                      string
+	Irods_path                   string
+	File_exists_in_irods         bool
+	Cram_is_phix                 bool
+	Cram_dl_path                 string
+	Cram_download_success        bool
+	Imeta_path                   string
+	Library_type                 string
+	Sample_name                  string
+	Imeta_downloaded             bool
+	Imeta_parsed                 bool
+	Fastq_1_path                 string
+	Fastq_2_path                 string
+	Fastq_extracted_success      bool
+	Symlinked_fq_1               string
+	Symlinked_fq_2               string
+	Realigned_bam_path           string
+	Realigned_succesful          bool
+	Realigned_quickcheck_success bool
 }
 
 var cram_list []cram_file
+
+var wg sync.WaitGroup
 
 func main() {
 	// variables that the user can change
@@ -533,7 +553,6 @@ func main() {
 				_ = os.MkdirAll(out_folder, 0755)
 
 				bam_output := out_folder + cram.Sample_name + ".bam"
-				fmt.Println(bam_output)
 				job_out := out_folder + "/5_realignement_RNA_" + cram.Sample_name + ".o"
 				job_err := out_folder + "/5_realignement_RNA_" + cram.Sample_name + ".e"
 
@@ -595,6 +614,33 @@ func main() {
 
 		// check on alignment jobs until they have finished
 		bjobsIsCompleted(realignment_map, "Realigned_succesful", &cram_list)
+
+		writeCheckpoint(cram_list, current_step)
+	}
+
+	current_step = 6
+	// if quickcheck has already been performed then load session information and continue
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+		log.Println("Running samtools quickcheck on completed bams")
+
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Realigned_succesful {
+				wg.Add(1)
+				go quickcheck_alignments(cram_list, i, samtools_exec)
+			}
+		}
+		wg.Wait() // wait until all quickcheck processes have finished
 
 		writeCheckpoint(cram_list, current_step)
 	}
