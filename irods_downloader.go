@@ -98,6 +98,24 @@ func quickcheck_alignments(cram_list []cram_file, i int, samtools_exec string) {
 	wg.Done()
 }
 
+func indexBam(cram_list []cram_file, i int, samtools_exec string) {
+	cram := &cram_list[i]
+
+	bam_filename := cram.Realigned_bam_path
+	output, err := exec.Command(samtools_exec, "index", bam_filename).CombinedOutput()
+
+	if err != nil {
+		// Display everything we got if error.
+		fmt.Println("Error when running command.  Output:")
+		fmt.Println(string(output))
+		fmt.Printf("Got command status: %s\n", err.Error())
+		cram.Realigned_index_success = false
+	} else {
+		cram.Realigned_index_success = true
+	}
+	wg.Done()
+}
+
 type cram_file struct {
 	Filename                     string
 	Runid                        string
@@ -120,6 +138,7 @@ type cram_file struct {
 	Realigned_bam_path           string
 	Realigned_succesful          bool
 	Realigned_quickcheck_success bool
+	Realigned_index_success      bool
 }
 
 var cram_list []cram_file
@@ -638,6 +657,33 @@ func main() {
 			if cram.Realigned_succesful {
 				wg.Add(1)
 				go quickcheck_alignments(cram_list, i, samtools_exec)
+			}
+		}
+		wg.Wait() // wait until all quickcheck processes have finished
+
+		writeCheckpoint(cram_list, current_step)
+	}
+
+	current_step = 7
+	// if quickcheck has already been performed then load session information and continue
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+		log.Println("Indexing quickchecked bams")
+
+		for i := range cram_list {
+			cram := &cram_list[i]
+			if cram.Realigned_quickcheck_success {
+				wg.Add(1)
+				indexBam(cram_list, i, samtools_exec)
 			}
 		}
 		wg.Wait() // wait until all quickcheck processes have finished
