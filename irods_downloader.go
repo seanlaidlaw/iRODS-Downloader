@@ -24,6 +24,7 @@ import (
 // 5. Align extracted fastqs with STAR or BWA depending on 'Library_type'
 // 6. Samtools Quickcheck generated bams
 // 7. Index realigned bam files
+// 8. Generate counts matrix of RNA bams
 
 // fileExists checks if a file exists and is not a directory before we
 // try using it to prevent further errors.
@@ -156,6 +157,8 @@ func main() {
 	star_genome_dir := "/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/"
 	bwa_exec := "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa"
 	bwa_genome_ref := "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa"
+	featurecounts_exec := "/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts"
+	genome_annot := "/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf"
 
 	var run string
 	var lane string
@@ -691,4 +694,91 @@ func main() {
 		writeCheckpoint(cram_list, current_step)
 	}
 
+	current_step = 8
+	// if counts matrix has already been built then load session info
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+		log.Println("Running featurecounts on completed RNA bams")
+		var rna_bams_featurecounts_input []string
+
+		for i := range cram_list {
+			cram := &cram_list[i]
+			// if quickcheck worked then add its realigned and sorted bam path to list of bams to include in counts matrix
+			if cram.Realigned_quickcheck_success {
+				if stringInSlice(cram.Library_type, star_align_libraries) {
+					rna_bams_featurecounts_input = append(rna_bams_featurecounts_input, cram.Realigned_bam_path)
+
+				}
+			}
+		}
+
+		if len(rna_bams_featurecounts_input) < 1 {
+			log.Fatalln("Less than  1 bams in RNA category, not enough for featurecounts, aborting.")
+		}
+
+		err := os.Mkdir("6_Counts_matrix_RNA", 0755)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		matrix_out := "6_Counts_matrix_RNA/featurecounts_matrix.tsv"
+		job_out := "6_Counts_matrix_RNA/featurecounts_run.o"
+		job_err := "6_Counts_matrix_RNA/featurecounts_run.e"
+
+		featureCountsCmd := []string{
+			"-o", job_out,
+			"-e", job_err,
+			"-R'select[mem>20000] rusage[mem=20000]'", "-M20000",
+			"-n", "14",
+			featurecounts_exec,
+			"-Q", "30",
+			"-p",
+			"-t", "exon",
+			"-g", "gene_name",
+			"-F", "GTF",
+			"-a", genome_annot,
+			"-o", matrix_out}
+
+		// append bam paths to end of command options, as this is what featureCounts expects
+		featureCountsCmd = append(featureCountsCmd, rna_bams_featurecounts_input...)
+
+		output, err := exec.Command("bsub", featureCountsCmd...).CombinedOutput()
+
+		if err != nil {
+			// Display everything we got if error.
+			log.Println("Error when running command.  Output:")
+			log.Println(string(output))
+			log.Printf("Got command status: %s\n", err.Error())
+			return
+		}
+
+		// wait for featurecounts job to finish
+		for {
+			dat, err := ioutil.ReadFile(job_out)
+			if err == nil {
+				if strings.Contains(string(dat), "Terminated at") {
+					break
+				}
+			}
+			time.Sleep(5 * time.Second)
+		}
+
+		// if featurecounts exited successfuly write new checkpoint file
+		// this doesn't have any new information but its presence will indicate not to repeat the featurecounts step
+		dat, err := ioutil.ReadFile(job_out)
+		if err == nil {
+			if strings.Contains(string(dat), "Successfully completed.") {
+				writeCheckpoint(cram_list, current_step)
+			}
+		}
+	}
 }

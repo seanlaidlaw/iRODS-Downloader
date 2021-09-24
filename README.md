@@ -70,4 +70,10 @@ by the sample name obtained from imeta
 - 5_realignments
 
 here is where the realigned bam files are output, following the library_type
-separated folder structure like before
+separated folder structure like before. The realigned bams are sorted before
+writing to disk, and are indexed in step 7 of analysis.
+
+- 6_Counts_matrix_RNA
+
+if there are bams that have a library_type specified as RNA, the produced counts
+matrix for those bams is computed and stored here.

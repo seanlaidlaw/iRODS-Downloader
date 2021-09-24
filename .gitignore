@@ -2,4 +2,5 @@
 3_Fastq_Extraction/
 4_Split_by_Library_Type/
 5_realignments/
+6_Counts_matrix_RNA/
 checkpoint_*.json
