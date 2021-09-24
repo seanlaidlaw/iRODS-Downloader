@@ -1,3 +1,6 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/seanlaidlaw/iRODS-Downloader)](https://goreportcard.com/report/github.com/seanlaidlaw/iRODS-Downloader)
+[![Maintainability](https://api.codeclimate.com/v1/badges/9d887eaebd349e28260e/maintainability)](https://codeclimate.com/github/seanlaidlaw/iRODS-Downloader/maintainability)
+
 # iRODS-Downloader
 
 ## Installation
