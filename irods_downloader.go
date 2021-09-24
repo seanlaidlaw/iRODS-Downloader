@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 // PIPELINE STEPS
@@ -147,18 +149,41 @@ var cram_list []cram_file
 var wg sync.WaitGroup
 
 func main() {
-	// variables that the user can change
-	attribute_with_sample_name := "sample_supplier_name"
-	samtools_exec := "/software/CASM/modules/installs/samtools/samtools-1.11/bin/samtools"
-	// define the library_type values that use each aligner
-	star_align_libraries := []string{"GnT scRNA"}
-	bwa_align_libraries := []string{"GnT Picoplex"}
-	star_exec := "/nfs/users/nfs_r/rr11/Tools/STAR-2.5.2a/bin/Linux_x86_64_static/STAR"
-	star_genome_dir := "/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/"
-	bwa_exec := "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa"
-	bwa_genome_ref := "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa"
-	featurecounts_exec := "/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts"
-	genome_annot := "/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf"
+	// we want to load a config file named "irods_downloader_config.yaml" if it exists in WD or in ~/.config
+	viper.SetConfigName("irods_downloader_config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")              // look for config in the working directory first
+	viper.AddConfigPath("$HOME/.config/") // if not found then look in .config folder
+
+	viper.SetDefault("star_align_libraries", []string{"GnT scRNA"})
+	viper.SetDefault("bwa_align_libraries", []string{"GnT Picoplex"})
+
+	viper.SetDefault("attribute_with_sample_name", "sample_supplier_name")
+	viper.SetDefault("samtools_exec", "/software/CASM/modules/installs/samtools/samtools-1.11/bin/samtools")
+	viper.SetDefault("star_exec", "/nfs/users/nfs_r/rr11/Tools/STAR-2.5.2a/bin/Linux_x86_64_static/STAR")
+	viper.SetDefault("star_genome_dir", "/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/")
+	viper.SetDefault("bwa_exec", "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa")
+	viper.SetDefault("bwa_genome_ref", "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa")
+	viper.SetDefault("featurecounts_exec", "/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts")
+	viper.SetDefault("genome_annot", "/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf")
+
+	// read in config file if found, else use defaults
+	if err := viper.ReadInConfig(); err != nil {
+		log.Fatalln("Unable to read config file")
+	}
+
+	// Config file found and successfully parsed
+	star_align_libraries := viper.GetStringSlice("star_align_libraries")
+	bwa_align_libraries := viper.GetStringSlice("bwa_align_libraries")
+
+	attribute_with_sample_name := viper.GetString("attribute_with_sample_name")
+	samtools_exec := viper.GetString("samtools_exec")
+	star_exec := viper.GetString("star_exec")
+	star_genome_dir := viper.GetString("star_genome_dir")
+	bwa_exec := viper.GetString("bwa_exec")
+	bwa_genome_ref := viper.GetString("bwa_genome_ref")
+	featurecounts_exec := viper.GetString("featurecounts_exec")
+	genome_annot := viper.GetString("genome_annot")
 
 	var run string
 	var lane string

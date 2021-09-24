@@ -27,6 +27,8 @@ dependencies are required to be installed on the server it's run on.
   source but _not_ if using the binaries from
   [the release](https://github.com/seanlaidlaw/iRODS-Downloader/releases)
 
+- [viper library](https://github.com/spf13/viper) for Golang config management
+
 ## Usage
 
 ### Authentication
@@ -48,6 +50,30 @@ specifying the lane. Both must be provided for the script to run properly.
 
 ```{bash}
 $ ./irods_downloader -r 1234 -l 1
+```
+
+### Configuration
+
+irods_downloader will look for a configuration file named
+`irods_downloader_config.yaml` to know where to look for the program
+dependencies as well as what library_types it should class as RNA vs DNA. Config
+file matching this filename are looked for first in the working directory (thus
+allowing for project specific configs), then `$HOME/.config/` is searched, and
+finally if neither location contains a config the default versions are used.
+
+Example YAML configuration file. This is a valid config file with the default
+values:
+
+```{yaml}
+bwa_align_libraries: ["GnT Picoplex"]
+attribute_with_sample_name: "sample_supplier_name"
+samtools_exec: "/software/CASM/modules/installs/samtools/samtools-1.11/bin/samtools"
+star_exec: "/nfs/users/nfs_r/rr11/Tools/STAR-2.5.2a/bin/Linux_x86_64_static/STAR"
+star_genome_dir: "/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/"
+bwa_exec: "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa"
+bwa_genome_ref: "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa"
+featurecounts_exec: "/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts"
+genome_annot: "/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf"
 ```
 
 ### Outputs
