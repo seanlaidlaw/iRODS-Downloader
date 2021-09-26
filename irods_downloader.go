@@ -21,11 +21,12 @@ import (
 // 0. Assess what CRAM files are being requested
 // 1. Download CRAM files
 // 2. Download imeta files for each cram file
-// 3. Convert the CRAM files to fastq
-// 4. Symlink the fastqs to two different folders depending on 'Library_type'
-// 5. Align extracted fastqs with STAR or BWA depending on 'Library_type'
-// 6. Samtools Quickcheck generated bams
-// 7. Index realigned bam files
+// 3. Establish unique sample names exist
+// 4. Convert the CRAM files to fastq
+// 5. Symlink the fastqs to two different folders depending on 'Library_type'
+// 6. Align extracted fastqs with STAR or BWA depending on 'Library_type'
+// 7. Samtools Quickcheck generated bams
+// 8. Index realigned bam files
 // 8. Generate counts matrix of RNA bams
 
 // fileExists checks if a file exists and is not a directory before we
@@ -415,10 +416,27 @@ func main() {
 			}
 		}
 
+		writeCheckpoint(cram_list, current_step)
+	}
+
+	current_step = 3
+	// if unique sample names already established
+	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
+		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
+		byteValue, _ := ioutil.ReadAll(jsonFile)
+		err = json.Unmarshal([]byte(byteValue), &cram_list)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println(fmt.Sprintf("Checkpoint exists for step %d, loading progress", current_step))
+
+	} else {
+
 		log.Println("Parsing imeta file to obtain library_type and sample name")
 		for i := range cram_list {
 			cram := &cram_list[i]
-			if cram.Cram_download_success {
+			if cram.Imeta_downloaded {
 
 				library_type := ""
 				sample_name := ""
@@ -466,8 +484,10 @@ func main() {
 		sample_names_map := make(map[string][]string)
 		for i := range cram_list {
 			cram := &cram_list[i]
-			if cram.Library_type != "" {
-				sample_names_map[cram.Library_type] = []string{}
+			if cram.Imeta_downloaded {
+				if cram.Library_type != "" {
+					sample_names_map[cram.Library_type] = []string{}
+				}
 			}
 		}
 
@@ -477,19 +497,21 @@ func main() {
 
 		for i := range cram_list {
 			cram := &cram_list[i]
-			if cram.Library_type != "" {
-				if stringInSlice(cram.Sample_name, sample_names_map[cram.Library_type]) {
-					log.Printf("Duplicate sample_names found for %s", cram.Sample_name)
-					log.Fatalln("There are duplicate values in sample_names, double check your choice of 'attribute_with_sample_name'")
+			if cram.Imeta_downloaded {
+				if cram.Library_type != "" {
+					if stringInSlice(cram.Sample_name, sample_names_map[cram.Library_type]) {
+						log.Printf("Duplicate sample_names found for %s", cram.Sample_name)
+						log.Fatalln("There are duplicate values in sample_names, double check your choice of 'attribute_with_sample_name'")
+					}
+					sample_names_map[cram.Library_type] = append(sample_names_map[cram.Library_type], cram.Sample_name)
 				}
-				sample_names_map[cram.Library_type] = append(sample_names_map[cram.Library_type], cram.Sample_name)
 			}
 		}
 
 		writeCheckpoint(cram_list, current_step)
 	}
 
-	current_step = 3
+	current_step = 4
 	// if fastq have already been split then load checkpoint instead of rerunning
 	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
 		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
@@ -552,7 +574,7 @@ func main() {
 		writeCheckpoint(cram_list, current_step)
 	}
 
-	current_step = 4
+	current_step = 5
 	// if symlinks already created then load session information and continue
 	// if fastq have already been split then load checkpoint instead of rerunning
 	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
@@ -584,7 +606,7 @@ func main() {
 		writeCheckpoint(cram_list, current_step)
 	}
 
-	current_step = 5
+	current_step = 6
 	// if alignments already performed then load session information and continue
 	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
 		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
@@ -674,7 +696,7 @@ func main() {
 		writeCheckpoint(cram_list, current_step)
 	}
 
-	current_step = 6
+	current_step = 7
 	// if quickcheck has already been performed then load session information and continue
 	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
 		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
@@ -701,7 +723,7 @@ func main() {
 		writeCheckpoint(cram_list, current_step)
 	}
 
-	current_step = 7
+	current_step = 8
 	// if quickcheck has already been performed then load session information and continue
 	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
 		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
@@ -728,7 +750,7 @@ func main() {
 		writeCheckpoint(cram_list, current_step)
 	}
 
-	current_step = 8
+	current_step = 9
 	// if counts matrix has already been built then load session info
 	if fileExists(fmt.Sprintf("checkpoint_%d.json", current_step)) {
 		jsonFile, err := os.Open(fmt.Sprintf("checkpoint_%d.json", current_step))
