@@ -233,9 +233,7 @@ func main() {
 			log.Fatalln("No iRODS data retrieved with given lane and run")
 		}
 
-		var cram_list []cram_file
 		var collection, filename string
-
 		split_output := bytes.Split(output, []byte("----"))
 
 		// for each cram file returned by iRODS, parse into its own object and write its run, lane,
