@@ -91,9 +91,9 @@ func quickcheck_alignments(cram_list []cram_file, i int, samtools_exec string) {
 
 	if err != nil {
 		// Display everything we got if error.
-		fmt.Println("Error when running command.  Output:")
-		fmt.Println(string(output))
-		fmt.Printf("Got command status: %s\n", err.Error())
+		log.Println("Error when running command.  Output:")
+		log.Println(string(output))
+		log.Printf("Got command status: %s\n", err.Error())
 		cram.Realigned_quickcheck_success = false
 	} else {
 		cram.Realigned_quickcheck_success = true
@@ -109,9 +109,9 @@ func indexBam(cram_list []cram_file, i int, samtools_exec string) {
 
 	if err != nil {
 		// Display everything we got if error.
-		fmt.Println("Error when running command.  Output:")
-		fmt.Println(string(output))
-		fmt.Printf("Got command status: %s\n", err.Error())
+		log.Println("Error when running command.  Output:")
+		log.Println(string(output))
+		log.Printf("Got command status: %s\n", err.Error())
 		cram.Realigned_index_success = false
 	} else {
 		cram.Realigned_index_success = true
@@ -173,8 +173,8 @@ func main() {
 	}
 
 	// Config file found and successfully parsed
-	star_align_libraries := viper.GetStringSlice("star_align_libraries")
-	bwa_align_libraries := viper.GetStringSlice("bwa_align_libraries")
+	//star_align_libraries := viper.GetStringSlice("star_align_libraries")
+	//bwa_align_libraries := viper.GetStringSlice("bwa_align_libraries")
 
 	attribute_with_sample_name := viper.GetString("attribute_with_sample_name")
 	samtools_exec := viper.GetString("samtools_exec")
@@ -222,9 +222,9 @@ func main() {
 
 		if err != nil {
 			// Display everything we got if error.
-			fmt.Println("Error when running command.  Output:")
-			fmt.Println(string(output))
-			fmt.Printf("Got command status: %s\n", err.Error())
+			log.Println("Error when running command.  Output:")
+			log.Println(string(output))
+			log.Printf("Got command status: %s\n", err.Error())
 			return
 		}
 
@@ -295,9 +295,9 @@ func main() {
 				cram.File_exists_in_irods = true
 			} else if err != nil {
 				// Display everything we got if error.
-				fmt.Println("Error when running command.  Output:")
-				fmt.Println(string(output))
-				fmt.Printf("Got command status: %s\n", err.Error())
+				log.Println("Error when running command.  Output:")
+				log.Println(string(output))
+				log.Printf("Got command status: %s\n", err.Error())
 				return
 			}
 		}
@@ -346,9 +346,9 @@ func main() {
 
 					if err != nil {
 						// Display everything we got if error.
-						fmt.Println("Error when running command.  Output:")
-						fmt.Println(string(output))
-						fmt.Printf("Got command status: %s\n", err.Error())
+						log.Println("Error when running command.  Output:")
+						log.Println(string(output))
+						log.Printf("Got command status: %s\n", err.Error())
 						return
 					}
 				}
@@ -398,8 +398,8 @@ func main() {
 				err = cmd.Run()
 				if err != nil {
 					// Display everything we got if error.
-					fmt.Println("Error when running command.  Output:")
-					fmt.Printf("Got command status: %s\n", err.Error())
+					log.Println("Error when running command.  Output:")
+					log.Printf("Got command status: %s\n", err.Error())
 					return
 				}
 				cram.Imeta_downloaded = true
@@ -527,9 +527,9 @@ func main() {
 
 				if err != nil {
 					// Display everything we got if error.
-					fmt.Println("Error when running command.  Output:")
-					fmt.Println(string(output))
-					fmt.Printf("Got command status: %s\n", err.Error())
+					log.Println("Error when running command.  Output:")
+					log.Println(string(output))
+					log.Printf("Got command status: %s\n", err.Error())
 					return
 				}
 			}
@@ -623,9 +623,9 @@ func main() {
 
 					if err != nil {
 						// Display everything we got if error.
-						fmt.Println("Error when running command.  Output:")
-						fmt.Println(string(output))
-						fmt.Printf("Got command status: %s\n", err.Error())
+						log.Println("Error when running command.  Output:")
+						log.Println(string(output))
+						log.Printf("Got command status: %s\n", err.Error())
 						return
 					}
 
@@ -647,9 +647,9 @@ func main() {
 
 					if err != nil {
 						// Display everything we got if error.
-						fmt.Println("Error when running command.  Output:")
-						fmt.Println(string(output))
-						fmt.Printf("Got command status: %s\n", err.Error())
+						log.Println("Error when running command.  Output:")
+						log.Println(string(output))
+						log.Printf("Got command status: %s\n", err.Error())
 						return
 					}
 
