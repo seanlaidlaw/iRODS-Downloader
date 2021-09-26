@@ -273,7 +273,7 @@ func main() {
 
 			cram_list = append(cram_list, cram_file{
 				Filename:     filename,
-				Runid:        collection,
+				Runid:        strings.Split(collection, "/seq/")[1],
 				Runlane:      run_lane,
 				Irods_path:   strings.TrimSpace(collection + "/" + filename),
 				Cram_is_phix: phix_status,
@@ -282,7 +282,7 @@ func main() {
 
 		cram_list_len := len(cram_list)
 		if cram_list_len < 1 {
-			log.Fatalln("There are less than 1 items in cram list")
+			log.Fatalln("There are less than 1 items in run's cram list")
 		}
 
 		cram_exists_map := make(map[string]string)
@@ -330,7 +330,7 @@ func main() {
 
 		// download each of the cram files
 		log.Println("Starting download of iRODS CRAM files")
-		cram_dl_dir := "1_iRODS_CRAM_Downloads/"
+		cram_dl_dir := "A_iRODS_CRAM_Downloads/"
 		err := os.Mkdir(cram_dl_dir, 0755)
 		if err != nil {
 			log.Fatal(err)
@@ -525,7 +525,7 @@ func main() {
 		log.Println(fmt.Sprintf("Starting step %d", current_step))
 
 		log.Println("Extracting fastq from downloaded crams")
-		err := os.Mkdir("3_Fastq_Extraction", 0755)
+		err := os.Mkdir("B_Fastq_Extraction", 0755)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -536,15 +536,15 @@ func main() {
 			cram := &cram_list[i]
 			if cram.Imeta_parsed {
 
-				fastq_cram_map[cram.Filename] = "3_Fastq_Extraction/3_cram_to_fastq_" + cram.Filename + ".o"
+				fastq_cram_map[cram.Filename] = "B_Fastq_Extraction/B_cram_to_fastq_" + cram.Filename + ".o"
 				fq_filename := strings.ReplaceAll(cram.Filename, ".cram", "")
-				cram.Fastq_1_path = "3_Fastq_Extraction/" + fq_filename + ".1.fq.gz"
-				cram.Fastq_2_path = "3_Fastq_Extraction/" + fq_filename + ".2.fq.gz"
+				cram.Fastq_1_path = "B_Fastq_Extraction/" + fq_filename + ".1.fq.gz"
+				cram.Fastq_2_path = "B_Fastq_Extraction/" + fq_filename + ".2.fq.gz"
 
 				output, err := exec.Command(
 					"bsub",
-					"-o", "3_Fastq_Extraction/3_cram_to_fastq_"+cram.Filename+".o",
-					"-e", "3_Fastq_Extraction/3_cram_to_fastq_"+cram.Filename+".e",
+					"-o", "B_Fastq_Extraction/B_cram_to_fastq_"+cram.Filename+".o",
+					"-e", "B_Fastq_Extraction/B_cram_to_fastq_"+cram.Filename+".e",
 					"-R'select[mem>2000] rusage[mem=2000]'", "-M2000",
 					"-n", "4",
 					samtools_exec, "fastq", "-c", "7", "-@", "4",
@@ -592,7 +592,7 @@ func main() {
 			cram := &cram_list[i]
 			if cram.Fastq_extracted_success && cram.Library_type != "" {
 				lib_type_dir := strings.ReplaceAll(cram.Library_type, " ", "_")
-				lib_type_dir = "4_Split_by_Library_Type/" + lib_type_dir
+				lib_type_dir = "C_Split_by_Library_Type/" + lib_type_dir
 				_ = os.MkdirAll(lib_type_dir, 0755)
 				os.Symlink("../../"+cram.Fastq_1_path, lib_type_dir+"/"+cram.Sample_name+".1.fq.gz")
 				os.Symlink("../../"+cram.Fastq_2_path, lib_type_dir+"/"+cram.Sample_name+".2.fq.gz")
@@ -618,19 +618,19 @@ func main() {
 
 	} else {
 
-		_ = os.MkdirAll("5_realignments/", 0755)
+		_ = os.MkdirAll("D_realignments/", 0755)
 		log.Println("Running alignments between extracted fastq and specified reference")
 		realignment_map := make(map[string]string)
 		for i := range cram_list {
 			cram := &cram_list[i]
 			if cram.Symlinked_fq_1 != "" && cram.Symlinked_fq_2 != "" {
 
-				out_folder := "5_realignments/" + strings.ReplaceAll(cram.Library_type, " ", "_") + "/"
+				out_folder := "D_realignments/" + strings.ReplaceAll(cram.Library_type, " ", "_") + "/"
 				_ = os.MkdirAll(out_folder, 0755)
 
 				bam_output := out_folder + cram.Sample_name + ".bam"
-				job_out := out_folder + "/5_realignement_RNA_" + cram.Sample_name + ".o"
-				job_err := out_folder + "/5_realignement_RNA_" + cram.Sample_name + ".e"
+				job_out := out_folder + "/D_realignement_RNA_" + cram.Sample_name + ".o"
+				job_err := out_folder + "/D_realignement_RNA_" + cram.Sample_name + ".e"
 
 				if stringInSlice(cram.Library_type, star_align_libraries) {
 					output, err := exec.Command(
@@ -779,14 +779,14 @@ func main() {
 			log.Fatalln("Less than  1 bams in RNA category, not enough for featurecounts, aborting.")
 		}
 
-		err := os.Mkdir("6_Counts_matrix_RNA", 0755)
+		err := os.Mkdir("E_Counts_matrix_RNA", 0755)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		matrix_out := "6_Counts_matrix_RNA/featurecounts_matrix.tsv"
-		job_out := "6_Counts_matrix_RNA/featurecounts_run.o"
-		job_err := "6_Counts_matrix_RNA/featurecounts_run.e"
+		matrix_out := "E_Counts_matrix_RNA/featurecounts_matrix.tsv"
+		job_out := "E_Counts_matrix_RNA/featurecounts_run.o"
+		job_err := "E_Counts_matrix_RNA/featurecounts_run.e"
 
 		featureCountsCmd := []string{
 			"-o", job_out,
