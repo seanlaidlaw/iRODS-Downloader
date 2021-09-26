@@ -286,20 +286,28 @@ func main() {
 			log.Fatalln("There are less than 1 items in cram list")
 		}
 
+		cram_exists_map := make(map[string]string)
 		// for each cram in iRODS check it exists with the "ils" command and write result to object metadata
 		log.Println("Verifying each iRODS cram file exists")
 		for i := range cram_list {
 			cram := &cram_list[i]
-			output, err := exec.Command("ils", cram.Irods_path).CombinedOutput()
-			if err == nil {
-				cram.File_exists_in_irods = true
-			} else if err != nil {
-				// Display everything we got if error.
-				log.Println("Error when running command.  Output:")
-				log.Println(string(output))
-				log.Printf("Got command status: %s\n", err.Error())
-				return
+			if cram.Cram_is_phix == false {
+				output, err := exec.Command("ils", cram.Irods_path).CombinedOutput()
+				if err == nil {
+					cram.File_exists_in_irods = true
+					cram_exists_map[cram.Filename] = cram.Irods_path
+				} else if err != nil {
+					// Display everything we got if error.
+					log.Println("Error when running command.  Output:")
+					log.Println(string(output))
+					log.Printf("Got command status: %s\n", err.Error())
+					return
+				}
 			}
+		}
+
+		if len(cram_exists_map) < 1 {
+			log.Fatalln("There are no crams in cram exists list")
 		}
 
 		// write copy of array of cram objects to JSON file
@@ -333,30 +341,31 @@ func main() {
 		for i := range cram_list {
 			cram := &cram_list[i]
 			if cram.File_exists_in_irods {
-				if !cram.Cram_is_phix {
+				undownloaded_cram_map[cram.Filename] = cram_dl_dir + "/" + cram.Filename + ".o"
+				cram.Cram_dl_path = cram_dl_dir + "/" + cram.Filename
+				output, err := exec.Command(
+					"bsub",
+					"-o", cram_dl_dir+"/"+cram.Filename+".o",
+					"-e", cram_dl_dir+"/"+cram.Filename+".e",
+					"-R'select[mem>2000] rusage[mem=2000]'", "-M2000",
+					"iget", "-K", cram.Irods_path, cram.Cram_dl_path).CombinedOutput()
 
-					undownloaded_cram_map[cram.Filename] = cram_dl_dir + "/" + cram.Filename + ".o"
-					cram.Cram_dl_path = cram_dl_dir + "/" + cram.Filename
-					output, err := exec.Command(
-						"bsub",
-						"-o", cram_dl_dir+"/"+cram.Filename+".o",
-						"-e", cram_dl_dir+"/"+cram.Filename+".e",
-						"-R'select[mem>2000] rusage[mem=2000]'", "-M2000",
-						"iget", "-K", cram.Irods_path, cram.Cram_dl_path).CombinedOutput()
-
-					if err != nil {
-						// Display everything we got if error.
-						log.Println("Error when running command.  Output:")
-						log.Println(string(output))
-						log.Printf("Got command status: %s\n", err.Error())
-						return
-					}
+				if err != nil {
+					// Display everything we got if error.
+					log.Println("Error when running command.  Output:")
+					log.Println(string(output))
+					log.Printf("Got command status: %s\n", err.Error())
+					return
 				}
 			}
 		}
 
+		if len(undownloaded_cram_map) < 1 {
+			log.Fatalln("There are less than 1 items in cram download list")
+		}
+
 		// verify the cram files downloaded correctly and write download status to object metadata
-		log.Println("Verifying success of downloads")
+		log.Println("Waiting for CRAM downloads to finish")
 		// this updates in place the specified attribute for objects in cram_list for the
 		// jobs that have finished successfully
 		bjobsIsCompleted(undownloaded_cram_map, "Cram_download_success", &cram_list)
