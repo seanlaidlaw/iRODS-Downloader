@@ -268,6 +268,9 @@ func main() {
 			if stringInSlice("phix.cram", split_filename) {
 				phix_status = true
 			}
+			if strings.HasSuffix(filename, "#0.cram") {
+				phix_status = true
+			}			
 			run_lane := strings.Split(split_filename[1], "#")[0] // this gets between _ and # which is lane
 			run_lane = strings.TrimSpace(run_lane)
 
