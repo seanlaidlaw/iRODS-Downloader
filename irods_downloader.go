@@ -57,7 +57,11 @@ func writeCheckpoint(cram_list []cram_file, step int) {
 	log.Println(fmt.Sprintf("Checkpoint saved for step %d", step))
 }
 
-func bjobsIsCompleted(submitted_jobs_map map[string]string, attribute_name string, cram_list *[]cram_file) {
+func bjobsIsCompleted(
+	submitted_jobs_map map[string]string,
+	attribute_name string,
+	cram_list *[]cram_file,
+) {
 	// while there are still jobs in submitted_jobs_map, iterate over reading through all job outputs and only leave when all have completed successfully
 	for len(submitted_jobs_map) > 0 {
 		for i := range *cram_list {
@@ -160,13 +164,31 @@ func main() {
 	viper.SetDefault("bwa_align_libraries", []string{"GnT Picoplex"})
 
 	viper.SetDefault("attribute_with_sample_name", "sample_supplier_name")
-	viper.SetDefault("samtools_exec", "/software/CASM/modules/installs/samtools/samtools-1.11/bin/samtools")
-	viper.SetDefault("star_exec", "/nfs/users/nfs_r/rr11/Tools/STAR-2.5.2a/bin/Linux_x86_64_static/STAR")
-	viper.SetDefault("star_genome_dir", "/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/")
+	viper.SetDefault(
+		"samtools_exec",
+		"/software/CASM/modules/installs/samtools/samtools-1.11/bin/samtools",
+	)
+	viper.SetDefault(
+		"star_exec",
+		"/nfs/users/nfs_r/rr11/Tools/STAR-2.5.2a/bin/Linux_x86_64_static/STAR",
+	)
+	viper.SetDefault(
+		"star_genome_dir",
+		"/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/",
+	)
 	viper.SetDefault("bwa_exec", "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa")
-	viper.SetDefault("bwa_genome_ref", "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa")
-	viper.SetDefault("featurecounts_exec", "/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts")
-	viper.SetDefault("genome_annot", "/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf")
+	viper.SetDefault(
+		"bwa_genome_ref",
+		"/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa",
+	)
+	viper.SetDefault(
+		"featurecounts_exec",
+		"/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts",
+	)
+	viper.SetDefault(
+		"genome_annot",
+		"/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf",
+	)
 
 	// read in config file if found, else use defaults
 	if err := viper.ReadInConfig(); err != nil {
@@ -270,7 +292,7 @@ func main() {
 			}
 			if strings.HasSuffix(filename, "#0.cram") {
 				phix_status = true
-			}			
+			}
 			run_lane := strings.Split(split_filename[1], "#")[0] // this gets between _ and # which is lane
 			run_lane = strings.TrimSpace(run_lane)
 
