@@ -77,6 +77,8 @@ bwa_exec: "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa"
 bwa_genome_ref: "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa"
 featurecounts_exec: "/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts"
 genome_annot: "/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf"
+bwa_ram: "50000"
+star_ram: "50000"
 ```
 
 ### Outputs

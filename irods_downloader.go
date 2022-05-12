@@ -172,11 +172,13 @@ func main() {
 		"star_exec",
 		"/nfs/users/nfs_r/rr11/Tools/STAR-2.5.2a/bin/Linux_x86_64_static/STAR",
 	)
+	viper.SetDefault("star_ram", "50000")
 	viper.SetDefault(
 		"star_genome_dir",
 		"/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37d5_ERCC92/star/75/",
 	)
 	viper.SetDefault("bwa_exec", "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa")
+	viper.SetDefault("bwa_ram", "50000")
 	viper.SetDefault(
 		"bwa_genome_ref",
 		"/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa",
@@ -185,6 +187,7 @@ func main() {
 		"featurecounts_exec",
 		"/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts",
 	)
+	viper.SetDefault("featurecounts_ram", "20000")
 	viper.SetDefault(
 		"genome_annot",
 		"/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf",
@@ -196,16 +199,19 @@ func main() {
 	}
 
 	// Config file found and successfully parsed
-	//star_align_libraries := viper.GetStringSlice("star_align_libraries")
-	//bwa_align_libraries := viper.GetStringSlice("bwa_align_libraries")
+	star_align_libraries := viper.GetStringSlice("star_align_libraries")
+	bwa_align_libraries := viper.GetStringSlice("bwa_align_libraries")
 
 	attribute_with_sample_name := viper.GetString("attribute_with_sample_name")
 	samtools_exec := viper.GetString("samtools_exec")
 	star_exec := viper.GetString("star_exec")
+	star_ram := viper.GetString("star_ram")
 	star_genome_dir := viper.GetString("star_genome_dir")
 	bwa_exec := viper.GetString("bwa_exec")
+	bwa_ram := viper.GetString("bwa_ram")
 	bwa_genome_ref := viper.GetString("bwa_genome_ref")
 	featurecounts_exec := viper.GetString("featurecounts_exec")
+	featurecounts_ram := viper.GetString("featurecounts_ram")
 	genome_annot := viper.GetString("genome_annot")
 
 	var run string
@@ -662,8 +668,8 @@ func main() {
 						"bsub",
 						"-o", job_out,
 						"-e", job_err,
-						"-R'select[mem>50000] rusage[mem=50000]'", "-M50000",
 						"-n", "10",
+						"-R'select[mem>"+star_ram+"] rusage[mem="+star_ram+"]'", "-M"+star_ram,
 						star_exec, "--runThreadN", "10",
 						"--outSAMattributes", "NH", "HI", "NM", "MD",
 						"--limitBAMsortRAM", "31532137230",
@@ -691,7 +697,7 @@ func main() {
 						"bsub",
 						"-o", job_out,
 						"-e", job_err,
-						"-R'select[mem>50000] rusage[mem=50000]'", "-M50000",
+						"-R'select[mem>"+bwa_ram+"] rusage[mem="+bwa_ram+"]'", "-M"+bwa_ram,
 						"-n", "10",
 						bwa_exec, "mem", "-t", "10",
 						bwa_genome_ref,
@@ -816,7 +822,7 @@ func main() {
 		featureCountsCmd := []string{
 			"-o", job_out,
 			"-e", job_err,
-			"-R'select[mem>20000] rusage[mem=20000]'", "-M20000",
+			"-R'select[mem>" + featurecounts_ram + "] rusage[mem=" + featurecounts_ram + "]'", "-M" + featurecounts_ram,
 			"-n", "14",
 			featurecounts_exec,
 			"-Q", "30",
