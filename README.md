@@ -55,6 +55,14 @@ specifying the lane. Both must be provided for the script to run properly.
 $ ./irods_downloader -r 1234 -l 1
 ```
 
+each run will download and process the samples in the working directory, so
+make sure to create a specific directory before running. Additionally, if
+multiple lanes need to be downloaded, the command will have to be run multiple
+times, each time in a separate directories. If errors occur, rerunning the
+command in the same directory will attempt to pick up where the downloader left
+off thanks to the checkpoint json files that irods_downloader produces as it
+goes.
+
 ### Configuration
 
 irods_downloader will look for a configuration file named
@@ -76,35 +84,43 @@ star_genome_dir: "/lustre/scratch119/casm/team78pipelines/reference/human/GRCh37
 bwa_exec: "/software/CASM/modules/installs/bwa/bwa-0.7.17/bin/bwa"
 bwa_genome_ref: "/lustre/scratch119/casm/team78pipelines/reference/human/GRCH37d5/genome.fa"
 featurecounts_exec: "/nfs/users/nfs_s/sl31/Tools/subread-2.0.1-Linux-x86_64/bin/featureCounts"
-genome_annot: "/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf"
+genome_annot: "/lustre/scratch124/casm/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCh37d5_ERCC92/cgpRna/e75/ensembl.gtf"
+```
+
+Additionally if the default memory usage is not appropriate the config can take
+the optional additional settings for each tool's ram usage:
+
+```{yaml}
 bwa_ram: "50000"
 star_ram: "50000"
+featurecounts_ram: "20000"
 ```
 
 ### Outputs
 
-- 1_iRODS_CRAM_Downloads
+- A_iRODS_CRAM_Downloads
 
 the downloaded CRAM and imeta files are stored here
 
-- 3_Fastq_Extraction
+- B_Fastq_Extraction
 
 this is the location the gz compressed fastq files, extracted from the crams in
-`1_iRODS_CRAM_Downloads`
+`A_iRODS_CRAM_Downloads`
 
-- 4_Split_by_Library_Type
+- C_Split_by_Library_Type
 
 here is where symlinks to the split fastqs are stored, in separate folders for
 each library_type. Additionally they are named no longer by iRODS filename but
 by the sample name obtained from imeta
 
-- 5_realignments
+- D_realignments
 
 here is where the realigned bam files are output, following the library_type
 separated folder structure like before. The realigned bams are sorted before
 writing to disk, and are indexed in step 7 of analysis.
 
-- 6_Counts_matrix_RNA
+- E_Counts_matrix_RNA
 
 if there are bams that have a library_type specified as RNA, the produced counts
 matrix for those bams is computed and stored here.
+
