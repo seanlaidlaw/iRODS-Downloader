@@ -862,6 +862,8 @@ func main() {
 		if err == nil {
 			if strings.Contains(string(dat), "Successfully completed.") {
 				writeCheckpoint(cram_list, current_step)
+			} else {
+				log.Fatalln("Featurecounts did not exit successfully")
 			}
 		}
 	}
