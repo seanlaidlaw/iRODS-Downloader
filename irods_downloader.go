@@ -190,7 +190,7 @@ func main() {
 	viper.SetDefault("featurecounts_ram", "20000")
 	viper.SetDefault(
 		"genome_annot",
-		"/lustre/scratch119/realdata/mdt1/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCH37d5/star/e75/ensembl.gtf",
+		"/nfs/users/nfs_s/sl31/ref/hg19_cDNA_gene_name_featurecounts.gtf",
 	)
 
 	// read in config file if found, else use defaults
